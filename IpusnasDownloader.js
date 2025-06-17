@@ -179,7 +179,6 @@ class IpusnasDownloader {
 
     const outputPdfPath = path.join(this.tempDir, `${bookId}.pdf`);
     fs.writeFileSync(outputPdfPath, buffer);
-    fs.writeFileSync(outputPdfPath, buffer);
     console.log(`📦 Extracted → ${outputPdfPath}`);
 
     try {
