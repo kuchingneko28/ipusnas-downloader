@@ -74,18 +74,27 @@ class IpusnasDownloader {
     });
 
     const totalLength = parseInt(response.headers["content-length"] || "0", 10);
+    let downloaded = 0;
+
     const progressBar = new cliProgress.SingleBar({
-      format: `↓ [{bar}] {percentage}% | {value}/{total} bytes`,
+      format: `↓ [{bar}] {percentage}% | {value}/{total} ({humanValue}/{humanTotal})`,
       barCompleteChar: "#",
       barIncompleteChar: ".",
       barsize: 25,
     });
 
-    if (totalLength) progressBar.start(totalLength, 0);
-    let downloaded = 0;
+    if (totalLength)
+      progressBar.start(totalLength, 0, {
+        humanTotal: this.formatBytes(totalLength),
+        humanValue: this.formatBytes(0),
+      });
+
     response.data.on("data", (chunk) => {
       downloaded += chunk.length;
-      if (totalLength) progressBar.update(downloaded);
+      if (totalLength)
+        progressBar.update(downloaded, {
+          humanValue: this.formatBytes(downloaded),
+        });
     });
 
     const writer = fs.createWriteStream(inputPath);
@@ -104,6 +113,13 @@ class IpusnasDownloader {
     });
     s;
   }
+  formatBytes(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+  }
+
   hashString(str) {
     const hash = crypto.createHash("sha256").update(str).digest("hex");
     return hash.slice(7, 23);
@@ -143,9 +159,9 @@ class IpusnasDownloader {
     }
     try {
       fs.unlinkSync(inputPath);
-      console.log(`🗑️  Deleted encrypted file: ${inputPath}`);
+      console.log(`🧹 Removed encrypted file: ${inputPath}`);
     } catch (err) {
-      console.warn(`⚠️ Could not delete ${inputPath}:`, err.message);
+      console.warn(`⚠️  Could not remove encrypted file: ${err.message}`);
     }
   }
 
@@ -163,13 +179,14 @@ class IpusnasDownloader {
 
     const outputPdfPath = path.join(this.tempDir, `${bookId}.pdf`);
     fs.writeFileSync(outputPdfPath, buffer);
-    console.log(`📄 Extracted PDF: ${outputPdfPath}`);
+    fs.writeFileSync(outputPdfPath, buffer);
+    console.log(`📦 Extracted → ${outputPdfPath}`);
 
     try {
       fs.unlinkSync(inputPath);
-      console.log(`🗑️  Deleted encrypted file: ${inputPath}`);
+      console.log(`🧹 Removed zip archive: ${inputPath}`);
     } catch (err) {
-      console.warn(`⚠️ Could not delete ${inputPath}:`, err.message);
+      console.warn(`⚠️  Could not remove zip archive: ${err.message}`);
     }
 
     return outputPdfPath;
@@ -181,7 +198,7 @@ class IpusnasDownloader {
         data: { access_token, id: user_id },
       } = JSON.parse(fs.readFileSync("token.json", "utf-8"));
       const {
-        data: { id: book_id, book_title, using_drm, file_size_info },
+        data: { id: book_id, book_title, using_drm, file_size_info, file_ext, book_author },
       } = await this.getBookDetail(access_token, this.bookId);
 
       const {
@@ -192,10 +209,12 @@ class IpusnasDownloader {
         },
       } = await this.getBorrowInfo(access_token, book_id);
 
-      console.log("iPusnas Downloader");
-      console.log(`📘 Title: ${book_title}`);
-      console.log(`📁 File Size: ${file_size_info}`);
-      console.log(`🔐 DRM Protected: ${using_drm ? "Yes" : "No"}`);
+      console.log("📚 iPusnas Downloader");
+      console.log(`📘 Book Title     : ${book_title}`);
+      console.log(`✍️  Author         : ${book_author}`);
+      console.log(`📦 File Size      : ${file_size_info}`);
+      console.log(`📄 File Extension : ${file_ext}`);
+      console.log(`🔒 DRM Protected  : ${using_drm ? "Yes" : "No"}`);
 
       const downloadedFile = await this.downloadBook(url_file, book_title);
       const fileExt = path.extname(downloadedFile).toLowerCase();
