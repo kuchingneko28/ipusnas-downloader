@@ -77,24 +77,24 @@ class IpusnasDownloader {
     let downloaded = 0;
 
     const progressBar = new cliProgress.SingleBar({
-      format: `↓ [{bar}] {percentage}% | {value}/{total} ({humanValue}/{humanTotal})`,
+      format: `↓ [{bar}] {percentage}% | {humanValue}/{humanTotal})`,
       barCompleteChar: "#",
       barIncompleteChar: ".",
       barsize: 25,
     });
 
-    if (totalLength)
-      progressBar.start(totalLength, 0, {
-        humanTotal: this.formatBytes(totalLength),
-        humanValue: this.formatBytes(0),
-      });
+    if (!totalLength) throw new Error("❌ Missing 'content-length' header. The server might not support progress tracking.");
+
+    progressBar.start(totalLength, 0, {
+      humanTotal: this.formatBytes(totalLength),
+      humanValue: this.formatBytes(0),
+    });
 
     response.data.on("data", (chunk) => {
       downloaded += chunk.length;
-      if (totalLength)
-        progressBar.update(downloaded, {
-          humanValue: this.formatBytes(downloaded),
-        });
+      progressBar.update(downloaded, {
+        humanValue: this.formatBytes(downloaded),
+      });
     });
 
     const writer = fs.createWriteStream(inputPath);
@@ -102,16 +102,17 @@ class IpusnasDownloader {
 
     return new Promise((resolve, reject) => {
       writer.on("finish", () => {
-        if (totalLength) progressBar.stop();
+        progressBar.stop();
         console.log(`\n✅ Download complete: ${inputPath}`);
         resolve(inputPath);
       });
+
       writer.on("error", (err) => {
-        if (totalLength) progressBar.stop();
+        progressBar.stop();
+        console.error("❌ Download failed:", err.message);
         reject(err);
       });
     });
-    s;
   }
   formatBytes(bytes) {
     if (bytes === 0) return "0 Bytes";
