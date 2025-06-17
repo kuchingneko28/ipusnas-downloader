@@ -77,7 +77,7 @@ class IpusnasDownloader {
     let downloaded = 0;
 
     const progressBar = new cliProgress.SingleBar({
-      format: `↓ [{bar}] {percentage}% | {humanValue}/{humanTotal})`,
+      format: `↓ [{bar}] {percentage}% | {humanValue}/{humanTotal}`,
       barCompleteChar: "#",
       barIncompleteChar: ".",
       barsize: 25,
