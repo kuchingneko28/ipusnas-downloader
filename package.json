@@ -7,6 +7,7 @@
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts",
     "test": "bun test",
+    "setup": "bun src/scripts/setup.ts",
     "build": "bun build src/index.ts --compile --outfile bin/ipusnas"
   },
   "keywords": [

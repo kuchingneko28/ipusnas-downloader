@@ -17,8 +17,7 @@ A powerful CLI tool to download and decrypt books from the iPusnas (National Lib
 
 - **Bun**: This project uses [Bun](https://bun.sh) as the runtime and package manager.
 - **QPDF**: Required for PDF decryption.
-  - Linux: `sudo apt install qpdf`
-  - Windows: Download from [GitHub](https://github.com/qpdf/qpdf/releases) and add to PATH.
+  - **Good News:** The setup script will attempt to install/download this for you automatically!
 
 ## Installation
 
@@ -29,16 +28,25 @@ A powerful CLI tool to download and decrypt books from the iPusnas (National Lib
    cd ipusnas-downloader
    ```
 
-2. Install dependencies:
+2. Run the setup script:
 
    ```bash
-   bun install
+   bun run setup
    ```
 
-3. Build the binary:
+   This command will:
+   - Install dependencies (`bun install`)
+   - Download the correct `qpdf` binary for your OS (Windows/Linux)
+   - Build the project to `bin/ipusnas`
+
+3. Verify installation:
+
    ```bash
-   bun run build
-   # Binary created at: bin/ipusnas
+   # From source
+   bun run start check
+
+   # Or using the binary
+   ./bin/ipusnas check
    ```
 
 ## Usage
@@ -89,6 +97,14 @@ For debugging or detailed logs:
 
 ```bash
 ./bin/ipusnas info
+```
+
+### 6. Custom QPDF Path (Optional)
+
+If you prefer to use your own `qpdf` binary instead of the monitored one, you can set the `QPDF_PATH` environment variable in your `.env` file:
+
+```bash
+QPDF_PATH="/usr/bin/qpdf"
 ```
 
 ## Disclaimer

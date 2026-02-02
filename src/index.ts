@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import prompts from "prompts";
 import { loginUser } from "./api/auth";
+import { checkCommand } from "./cli/commands/check";
 import { startInteractiveFlow } from "./cli/flow";
 import { logger, setVerbose, withSpinner } from "./cli/ui";
 import { getSession } from "./core/session";
@@ -68,6 +69,8 @@ program
       logger.warn("Not logged in.");
     }
   });
+
+program.addCommand(checkCommand);
 
 // Default action
 program.action(async () => {
