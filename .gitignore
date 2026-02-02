@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Session
+.session.json
+.ipusnas-session.json
+
+# Build
+bin/
+dist/
+
+# Application Data
+downloads/
+*.log
+
+# System
+.DS_Store
+
+# algorithm
+ipusnas-algorithm-new/

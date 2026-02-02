@@ -1,0 +1,35 @@
+{
+  "name": "ipusnas-downloader",
+  "version": "1.0.0",
+  "description": "A powerful CLI tool to download and decrypt books from the iPusnas (National Library of Indonesia) digital library ecosystem.",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "build": "bun build src/index.ts --compile --outfile bin/ipusnas"
+  },
+  "keywords": [
+    "ipusnas",
+    "downloader",
+    "bun",
+    "cli"
+  ],
+  "author": "kuchingneko",
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^13.1.0",
+    "ora": "^9.1.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/bun": "latest",
+    "@types/cli-progress": "^3.11.6",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.7.3"
+  }
+}
