@@ -31,8 +31,7 @@ async function getLatestVersion(): Promise<string> {
 async function downloadFile(url: string, dest: string): Promise<void> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(res.statusText);
-  if (!res.body) throw new Error("Empty response");
-  await Bun.write(Bun.file(dest), res);
+  await Bun.write(Bun.file(dest), await res.arrayBuffer());
 }
 
 async function installQpdf(): Promise<void> {
