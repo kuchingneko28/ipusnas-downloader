@@ -15,6 +15,7 @@ import type { AccessData, BorrowPayload } from "../api/types";
 import { logger } from "../cli/ui";
 
 export interface JweEnvelope {
+  v?: string;
   alg: string;
   s: string;
   n: string;
@@ -147,6 +148,7 @@ export function encryptPp2Borrow(payload: BorrowPayload, jwt: string): string {
   const tag = cipher.getAuthTag();
 
   const jwe: JweEnvelope = {
+    v: "1",
     alg: "AES-256-GCM+SCRYPT",
     s: salt.toString("base64url"),
     n: nonce.toString("base64url"),
