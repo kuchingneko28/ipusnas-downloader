@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Session
+.session.json
+.ipusnas-session.json
+
+# Build
+bin/
+dist/
+tsconfig.tsbuildinfo
+
+# Application Data
+downloads/
+config.json
+*.log
+
+# System
+.DS_Store
+
+# algorithm
+ipusnas-algorithm-new/
