@@ -38,6 +38,10 @@ export interface Book {
   cover_url: string;
 }
 
+export interface BookDetail {
+  catalog_info?: { organization_id?: string };
+}
+
 export interface ShelfItem {
   id: string;
   book_id: string;

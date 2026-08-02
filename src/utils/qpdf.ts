@@ -13,15 +13,11 @@ function findQpdf(): string {
   return binaryName;
 }
 
-export function getQpdfCommand(): string {
-  return findQpdf();
-}
-
 /**
  * Decrypt PDF using QPDF
  */
 export async function decryptPdf(inputPath: string, outputPath: string, password: string): Promise<boolean> {
-  const cmd = getQpdfCommand();
+  const cmd = findQpdf();
 
   const args = ["--password=" + password, "--decrypt", inputPath, outputPath];
   logger.debug(`[QPDF] CMD: ${cmd} ${args.join(" ")}`);

@@ -2,7 +2,7 @@
  * iPusnas Auth — Login + PoP Device Attestation
  */
 
-import { generateP256KeyPair, popHeaders } from "../core/crypto";
+import { generateP256KeyPair, popHeaders, type JwkPublicKey } from "../core/crypto";
 import { getSession, saveSession, type SessionData } from "../core/config";
 import { logger } from "../cli/ui";
 import type { AttestResponse, LoginData, LoginResponse, NonceResponse } from "./types";
@@ -16,7 +16,6 @@ const EP = {
   ATTEST: `${BASE}/trust/api/attest`,
   REFRESH: `${BASE}/trust/api/token/refresh`,
   LOGIN: `${BASE}/api/auth/login`,
-  REFRESH_TOKEN: `${BASE}/api/auth/refresh-token`,
 } as const;
 
 // ─── Headers ─────────────────────────────────────────────────────────────────
@@ -35,7 +34,7 @@ const TRUST_HEADERS: Record<string, string> = {
 
 // ─── Nonce ───────────────────────────────────────────────────────────────────
 
-export async function getNonce(): Promise<string> {
+async function getNonce(): Promise<string> {
   logger.debug(`[API] GET ${EP.NONCE}`);
   const res = await fetch(EP.NONCE, { headers: TRUST_HEADERS });
   const json = (await res.json()) as NonceResponse;
@@ -51,7 +50,7 @@ async function refreshAttestation(session: SessionData): Promise<string> {
   const body = JSON.stringify({ refresh_token: session.attestationRefreshToken });
   const signedHeaders = popHeaders(
     session.privatePem!,
-    JSON.stringify(session.publicJwk!),
+    session.publicJwk!,
     "POST",
     "/trust/api/token/refresh",
     Buffer.from(body),
@@ -91,6 +90,43 @@ export function isJwtExpired(token: string): boolean {
   }
 }
 
+function buildAttestBody(nonce: string, integrityToken: string, deviceId: string): string {
+  return JSON.stringify({
+    platform: "android",
+    nonce,
+    environment: "prod",
+    attestation_data: { integrity_token: integrityToken },
+    device_info: {
+      device_id: deviceId,
+      model: "SM-G998B",
+      os_version: "13",
+      sdk_version: 33,
+      app_version: "2.1.4",
+      package_name: "mam.reader.ipusnas",
+    },
+  });
+}
+
+async function postAttest(
+  body: string,
+  privatePem: string,
+  publicJwk: JwkPublicKey,
+  label: string,
+): Promise<AttestResponse & { access_token: string }> {
+  const signedHeaders = popHeaders(privatePem, publicJwk, "POST", "/trust/api/attest", Buffer.from(body));
+  logger.debug(`[API] POST ${EP.ATTEST}`);
+  const response = await fetch(EP.ATTEST, {
+    method: "POST",
+    headers: { ...TRUST_HEADERS, ...signedHeaders },
+    body,
+  });
+  if (!response.ok) throw new Error(`${label} failed: ${response.status} ${await response.text()}`);
+  const json = (await response.json()) as AttestResponse & { data?: AttestResponse };
+  const data = json.data ?? json;
+  if (json.success === false || !data.access_token) throw new Error(`${label} failed: ${JSON.stringify(json)}`);
+  return data as AttestResponse & { access_token: string };
+}
+
 export async function attestDevice(force = false): Promise<string> {
   const session = getSession();
 
@@ -115,52 +151,31 @@ export async function attestDevice(force = false): Promise<string> {
   const { privatePem, publicJwk } = generateP256KeyPair();
   const nonce = await getNonce();
   const deviceId = session?.deviceId || crypto.randomUUID();
+  const body = buildAttestBody(nonce, "", deviceId);
 
-  const body = JSON.stringify({
-    platform: "android",
-    nonce,
-    environment: "prod",
-    attestation_data: { integrity_token: "" },
-    device_info: {
-      device_id: deviceId,
-      model: "SM-G998B",
-      os_version: "13",
-      sdk_version: 33,
-      app_version: "2.1.4",
-      package_name: "mam.reader.ipusnas",
-    },
-  });
+  const data = await postAttest(body, privatePem, publicJwk, "Attestation");
+  persistAttestation(data, deviceId, privatePem, publicJwk);
 
-  const signedHeaders = popHeaders(privatePem, publicJwk, "POST", "/trust/api/attest", Buffer.from(body));
+  return data.access_token;
+}
 
-  logger.debug(`[API] POST ${EP.ATTEST}`);
-  const response = await fetch(EP.ATTEST, {
-    method: "POST",
-    headers: { ...TRUST_HEADERS, ...signedHeaders },
-    body,
-  });
-
-  if (!response.ok) throw new Error(`Attestation failed: ${response.status} ${await response.text()}`);
-
-  const json = (await response.json()) as AttestResponse & { data?: AttestResponse };
-  const data = json.data ?? json;
-  if (json.success === false || !data.access_token) {
-    throw new Error("Attestation failed: " + JSON.stringify(json));
-  }
-
-  const serverDeviceId = (data.device_id as string) || deviceId;
-  logger.debug(`[AUTH] device attestation success device_id=${serverDeviceId}`);
+function persistAttestation(
+  data: AttestResponse & { access_token: string },
+  fallbackDeviceId: string,
+  privatePem: string,
+  publicJwk: JwkPublicKey,
+): void {
+  const serverDeviceId = data.device_id || fallbackDeviceId;
+  logger.debug(`[AUTH] attestation success device_id=${serverDeviceId}`);
   const currentSession: SessionData = getSession() || { deviceId: "" };
   saveSession({
     ...currentSession,
     deviceId: serverDeviceId,
-    attestationToken: data.access_token,
-    attestationRefreshToken: data.refresh_token || "",
     privatePem,
     publicJwk,
+    attestationToken: data.access_token,
+    attestationRefreshToken: data.refresh_token || "",
   });
-
-  return data.access_token;
 }
 
 // ─── Register PoP Key ────────────────────────────────────────────────────────
@@ -169,43 +184,10 @@ export async function registerIntegrity(integrityToken: string, nonce: string): 
   const { privatePem, publicJwk } = generateP256KeyPair();
   const session = getSession();
   const deviceId = session?.deviceId || crypto.randomUUID();
+  const body = buildAttestBody(nonce, integrityToken, deviceId);
 
-  const body = JSON.stringify({
-    platform: "android",
-    nonce,
-    environment: "prod",
-    attestation_data: { integrity_token: integrityToken },
-    device_info: { device_id: deviceId, model: "SM-G998B", os_version: "13", sdk_version: 33, app_version: "2.1.4", package_name: "mam.reader.ipusnas" },
-  });
-
-  const signedHeaders = popHeaders(privatePem, publicJwk, "POST", "/trust/api/attest", Buffer.from(body));
-
-  logger.debug(`[API] POST ${EP.ATTEST}`);
-  const response = await fetch(EP.ATTEST, {
-    method: "POST",
-    headers: { ...TRUST_HEADERS, ...signedHeaders },
-    body,
-  });
-
-  if (!response.ok) throw new Error(`Registration failed: ${response.status} ${await response.text()}`);
-
-  const json = (await response.json()) as AttestResponse & { data?: AttestResponse };
-  const data = json.data ?? json;
-  if (json.success === false || !data.access_token) {
-    throw new Error("Registration failed: " + JSON.stringify(json));
-  }
-
-  const serverDeviceId = (data.device_id as string) || deviceId;
-  logger.debug(`[AUTH] registration success device_id=${serverDeviceId}`);
-  const currentSession: SessionData = getSession() || { deviceId: "" };
-  saveSession({
-    ...currentSession,
-    deviceId: serverDeviceId,
-    privatePem,
-    publicJwk,
-    attestationToken: data.access_token,
-    attestationRefreshToken: data.refresh_token || "",
-  });
+  const data = await postAttest(body, privatePem, publicJwk, "Registration");
+  persistAttestation(data, deviceId, privatePem, publicJwk);
 }
 
 // ─── Login ───────────────────────────────────────────────────────────────────

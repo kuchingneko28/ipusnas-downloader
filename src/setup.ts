@@ -6,7 +6,7 @@ import { $ } from "bun";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { logger, withSpinner } from "../cli/ui";
+import { logger, withSpinner } from "./cli/ui";
 
 interface GitHubRelease {
   tag_name: string;

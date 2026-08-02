@@ -5,6 +5,7 @@
 import * as clack from "@clack/prompts";
 
 export const { intro, outro } = clack;
+export const spinner = clack.spinner;
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
@@ -60,11 +61,4 @@ export async function promptSelect<Value>(
   const value = await clack.select({ message, options });
   if (clack.isCancel(value)) process.exit(0);
   return value as Value;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const index = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, index)).toFixed(1)} ${units[index]}`;
 }

@@ -1,12 +1,14 @@
+import type { CAC } from "cac";
 import type { ShelfItem } from "../../api/types";
 import { listShelf } from "../../api/client";
 import { logger, promptSelect, withSpinner } from "../ui";
-import * as download from "./download";
-import * as returnAction from "./return";
+import { runCommand } from "./run";
+import { downloadCommand } from "./download";
+import { returnCommand } from "./return";
 
 type ActionValue = "download" | "return" | "back" | null;
 
-export async function execute(): Promise<void> {
+async function shelfCommand(): Promise<void> {
   const books = await withSpinner("Loading shelf...", () => listShelf());
   logger.debug(`[SHELF] ${books.length} books`);
   if (!books.length) {
@@ -30,6 +32,14 @@ export async function execute(): Promise<void> {
     { value: "back" as ActionValue, label: "← Back" },
   ]);
 
-  if (action === "download") await download.execute(picked.book_id, picked.book_title);
-  else if (action === "return") await returnAction.execute(picked.id, picked.book_title);
+  if (action === "download") await downloadCommand(picked.book_id, picked.book_title);
+  else if (action === "return") await returnCommand(picked.id, picked.book_title);
+}
+
+export function register(cli: CAC): void {
+  cli
+    .command("shelf", "View borrowed books - select to download or return")
+    .action(async () => {
+      await runCommand("Shelf", true, shelfCommand);
+    });
 }

@@ -24,8 +24,8 @@ describe("PP2 JWE", () => {
     expect(encrypted.startsWith("PP2.")).toBe(true);
 
     const decrypted = decryptJwe(encrypted, jwt);
-    expect((decrypted as Record<string, unknown>).book_id).toBe("abc");
-    expect((decrypted as Record<string, unknown>).ts).toBe(1234567890);
+    expect(decrypted.book_id).toBe("abc");
+    expect(decrypted.ts).toBe(1234567890);
   });
 
   it("fails with wrong JWT", () => {

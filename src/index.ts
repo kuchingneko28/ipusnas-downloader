@@ -12,7 +12,7 @@ cli.help();
 cli.version(packageJson.version);
 
 const parsed = cli.parse();
-if ((parsed.options as Record<string, unknown>).verbose) setVerbose(true);
+if (parsed.options.verbose) setVerbose(true);
 
 if (!cli.matchedCommand && !parsed.options.help && !parsed.options.version) {
   cli.outputHelp();

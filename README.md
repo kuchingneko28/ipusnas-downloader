@@ -1,31 +1,31 @@
 # iPusnas Downloader CLI
 
-A powerful CLI tool to download and decrypt books from the iPusnas (National Library of Indonesia) digital library ecosystem.
+A CLI tool to search, borrow, download, and decrypt books from the iPusnas (National Library of Indonesia) digital library ecosystem.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Version](https://img.shields.io/badge/version-1.0.0-green)
 
 ## Features
 
-- **📚 Search & Borrow**: Search the catalog with pagination, borrow, download, and return books.
-- **🔓 Auto-Decryption**: Downloads and decrypts PDF (qpdf) and EPUB from MDRM archives.
-- **🔐 PoP Registration**: Register device key via ADB with a patched APK, or manually with `--token`.
-- **🔄 Auto-Session**: Token refresh on expiry — no need to re-login mid-session.
-- **⚡ Fast & Interactive**: Built with Bun, interactive prompts, spinners, and progress bars.
-- **🛠️ Doctor**: Health check command to verify session and device registration.
+- **Search & Borrow** — interactive catalog search with pagination; borrow, download, and return books.
+- **Auto-Decryption** — downloads and decrypts DRM-protected PDF (via qpdf) and EPUB from MDRM archives.
+- **PoP Registration** — registers the device PoP key automatically via ADB and a patched APK, or manually with `--token`/`--file`.
+- **Auto-Session** — transparent token refresh on expiry — no re-login mid-session.
+- **Interactive** — clack prompts, spinners, and a unified command flow.
+- **Doctor** — health check for your session and device registration.
 
 ## Prerequisites
 
-- **Bun**: This project uses [Bun](https://bun.sh) as the runtime and package manager.
-- **QPDF**: Required for PDF decryption.
-  - **Good News:** The setup script will attempt to install/download this for you automatically!
+- **Bun** — this project uses [Bun](https://bun.sh) as runtime and package manager.
+- **QPDF** — required for PDF decryption. The setup script auto-installs it for Linux x64 and Windows x64; on other platforms install `qpdf` yourself (or point to it via `QPDF_PATH`).
+- **Android device** — for automatic registration: a device with USB debugging enabled and the patched iPusnas APK installed (see below).
 
 ## Installation
 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/username/ipusnas-downloader.git
+   git clone https://github.com/kuchingneko28/ipusnas-downloader.git
    cd ipusnas-downloader
    ```
 
@@ -35,10 +35,7 @@ A powerful CLI tool to download and decrypt books from the iPusnas (National Lib
    bun run setup
    ```
 
-   This command will:
-   - Install dependencies (`bun install`)
-   - Download the correct `qpdf` binary for your OS (Windows/Linux)
-   - Build the project to `bin/ipusnas`
+   This installs dependencies (`bun install`), downloads the correct `qpdf` binary for your OS, and builds the project to `bin/ipusnas`.
 
 3. Verify installation:
 
@@ -50,26 +47,36 @@ A powerful CLI tool to download and decrypt books from the iPusnas (National Lib
    ./bin/ipusnas doctor
    ```
 
-### Device Registration
+## Patched APK (for automatic registration)
 
-Requires a patched iPusnas APK on an Android device with USB debugging.
+Automatic PoP registration needs a patched iPusnas APK on your Android device.
 
-**Download:** [GitHub Releases](https://github.com/kuchingneko28/ipusnas-pelir/releases) → `ipusnas-patcher-signed.zip`
+Download it from [GitHub Releases](https://github.com/kuchingneko28/ipusnas-downloader/releases) — the `ipusnas-patcher-signed.zip` asset. Verify it against the checksum published in the release notes:
 
 ```bash
 sha256sum ipusnas-patcher-signed.zip
-# ef0b297a7610c4130fed4c3015bd9250f4e2f33bf32747e020001dd77c7df3fe
 unzip ipusnas-patcher-signed.zip
 adb install-multiple base.apk split_config.arm64_v8a.apk split_config.in.apk split_config.xxhdpi.apk
 ```
 
 Or use **SAI (Split APKs Installer)** from Google Play — select all 4 `.apk` files.
 
-The patched APK logs the Play Integrity token to logcat so the CLI can capture it via ADB during register.
+The patched app runs Play Integrity on demand: it fetches a nonce from the server, requests a token, then writes both to `/sdcard/Android/data/mam.reader.ipusnas/files/ipusnas_attestation.json` (and logs them under the `ATTEST_DEBUG` logcat tag). The CLI reads that file, falling back to a live logcat stream, and registers the PoP key.
 
 ## Usage
 
-You can run the tool directly using `bun run start` or use the built binary `./bin/ipusnas`.
+Run commands with `bun run start <command>` or the built binary `./bin/ipusnas <command>`. Add `--verbose` for debug logging.
+
+| Command | Description |
+| --- | --- |
+| `login [--email] [--password]` | Login to iPusnas |
+| `register [--token] [--nonce] [--file <path>] [--force]` | Register PoP device key |
+| `search [query]` | Search catalog — pick an action from the results |
+| `shelf` | List borrowed books — select to download or return |
+| `borrow <id or URL>` | Borrow a book by ID or URL |
+| `download <id or URL>` | Download and decrypt a book by ID or URL |
+| `return <id or URL>` | Return a borrowed book |
+| `doctor` | System health check |
 
 ### 1. Login
 
@@ -77,52 +84,65 @@ You can run the tool directly using `bun run start` or use the built binary `./b
 ./bin/ipusnas login
 ```
 
-_Prompts for your iPusnas email and password._
+_Prompts for your iPusnas email and password. All other commands log in automatically if needed._
 
-**Auto-Login (Optional):**
-Set environment variables to skip manual login:
+**Auto-Login (optional):** skip the prompt with environment variables:
 
 ```bash
 export IPUSNAS_EMAIL="your@email.com"
 export IPUSNAS_PASSWORD="yourpassword"
 ```
 
-### 2. Search & Download
+### 2. Register (one-time, per device)
+
+With the device plugged in and USB debugging enabled:
+
+```bash
+./bin/ipusnas register
+```
+
+The CLI runs the patched app's attestation activity over ADB, captures the fresh token, and registers the PoP key. Re-run with `--force` to re-register, or pass a token manually:
+
+```bash
+./bin/ipusnas register --token <integrity-token> --nonce <nonce>
+./bin/ipusnas register --file attestation.json   # {"integrity_token": "...", "nonce": "..."}
+```
+
+### 3. Search & Download
 
 ```bash
 ./bin/ipusnas search "prabowo"
 ```
 
-_Displays a list of matching books. Select one to borrow and download._
+_Displays matching books; select one to borrow and download interactively._
 
-### 3. Direct Download
+### 4. Direct Download
 
-If you already have the Book URL or ID:
+If you already have the book URL or ID:
 
 ```bash
 ./bin/ipusnas download "https://ipusnas2.perpusnas.go.id/book/uuid-here"
 ```
 
-### 4. Verbose Mode
-
-For debugging or detailed logs:
+### 5. Shelf & Return
 
 ```bash
-./bin/ipusnas search "prabowo" --verbose
+./bin/ipusnas shelf
+./bin/ipusnas return <book-id-or-url>
 ```
 
-### 5. Doctor
+### 6. Doctor
 
 ```bash
 ./bin/ipusnas doctor --verbose
 ```
 
-### 6. Custom QPDF Path (Optional)
+### 7. Custom QPDF Path (optional)
 
-If you prefer to use your own `qpdf` binary instead of the monitored one, you can set the `QPDF_PATH` environment variable in your `.env` file:
+Point to your own `qpdf` binary instead of the bundled one:
 
 ```bash
-QPDF_PATH="/usr/bin/qpdf"
+export QPDF_PATH="/usr/bin/qpdf"
 ```
 
 ## Disclaimer

@@ -16,14 +16,26 @@ export interface SessionData {
   attestationRefreshToken?: string;
 }
 
+interface ConfigFile {
+  device_id?: string;
+  user_token?: string;
+  email?: string;
+  password?: string;
+  device_private_key?: string;
+  device_public_key?: string;
+  attestation_token?: string;
+  attestation_refresh_token?: string;
+  user?: LoginData;
+}
+
 let cache: SessionData | null = null;
 let configPath = path.resolve(process.cwd(), "config.json");
 
-export function loadSession(): SessionData | null {
+function loadSession(): SessionData | null {
   try {
     if (fs.existsSync(configPath)) {
       logger.debug(`[CONFIG] loading from ${configPath}`);
-      const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as ConfigFile;
       let publicJwk: JwkPublicKey | undefined;
       if (raw.device_public_key) {
         try { publicJwk = JSON.parse(raw.device_public_key); } catch { /* malformed */ }
@@ -43,14 +55,14 @@ export function loadSession(): SessionData | null {
       return cache;
     }
     logger.debug("[CONFIG] config file not found");
-  } catch (e) { logger.debug(`[CONFIG] parse error: ${(e as Error).message}`); }
+  } catch (error) { logger.debug(`[CONFIG] parse error: ${(error as Error).message}`); }
   return null;
 }
 
 export function saveSession(data: SessionData) {
   cache = data;
 
-  let existing: Record<string, unknown> = {};
+  let existing: ConfigFile = {};
   try {
     if (fs.existsSync(configPath)) {
       existing = JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -58,7 +70,7 @@ export function saveSession(data: SessionData) {
   } catch { /* ignore */ }
   logger.debug(`[CONFIG] saving to ${configPath}`);
 
-  const merged: Record<string, unknown> = {
+  const merged: ConfigFile = {
     ...existing,
     device_id: data.deviceId,
     user_token: data.userToken,
@@ -81,8 +93,4 @@ export function saveSession(data: SessionData) {
 export function getSession(): SessionData | null {
   if (!cache) return loadSession();
   return cache;
-}
-
-export function clearSession() {
-  cache = null;
 }

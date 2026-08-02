@@ -1,11 +1,19 @@
 import { $ } from "bun";
+import type { CAC } from "cac";
+import { readFileSync } from "node:fs";
 import { attestDevice, isJwtExpired, registerIntegrity } from "../../api/auth";
 import { getSession } from "../../core/config";
-import { logger, promptText, withSpinner } from "../ui";
+import { logger, promptText, spinner } from "../ui";
+import { runCommand } from "./run";
 
 const ATTEST_FILE = "/sdcard/Android/data/mam.reader.ipusnas/files/ipusnas_attestation.json";
 const PACKAGE_NAME = "mam.reader.ipusnas";
 const ATTEST_ACTIVITY = "mam.reader.ipusnas/mam.reader.ilibrary.attestation.TriggerAttestActivity";
+
+interface AttestationFile {
+  integrity_token?: string;
+  nonce?: string;
+}
 
 async function extractAdbAttestation(): Promise<{ token: string; nonce: string }> {
   try {
@@ -19,10 +27,10 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
     const logProc = Bun.spawn(["adb", "logcat", "-s", "ATTEST_DEBUG"], { stdout: "pipe" });
 
     // Delete the attestation file so we only accept a fresh nonce/token (nonce is single-use).
-    await $`adb shell rm -f ${ATTEST_FILE}`.catch(() => {});
-    await $`adb shell am force-stop ${PACKAGE_NAME}`;
-    logger.info("Triggering Play Integrity attestation...");
-    await $`adb shell am start -n ${ATTEST_ACTIVITY}`;
+    // .quiet(): suppress adb's own stdout (e.g. `Starting: Intent ...`) so it doesn't corrupt the spinner.
+    await $`adb shell rm -f ${ATTEST_FILE}`.quiet().catch(() => {});
+    await $`adb shell am force-stop ${PACKAGE_NAME}`.quiet();
+    await $`adb shell am start -n ${ATTEST_ACTIVITY}`.quiet();
 
     // The patched app writes nonce+token to a JSON file on every successful
     // attestation; poll for it (fast and reliable).
@@ -31,14 +39,14 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
       const json = await $`adb shell cat ${ATTEST_FILE}`.text().catch(() => "");
       if (json) {
         try {
-          const parsed = JSON.parse(json) as { nonce?: string; integrity_token?: string };
+          const parsed = JSON.parse(json) as AttestationFile;
           if (parsed.nonce && parsed.integrity_token) {
             logProc.kill();
             return { token: parsed.integrity_token, nonce: parsed.nonce };
           }
         } catch { /* partial write, retry */ }
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     // Fallback: read the live logcat stream (covers the whole attestation window).
@@ -52,11 +60,11 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
       return { token: tokenMatch[1], nonce: nonceMatch[1] };
     }
     logger.debug("[REGISTER] token/nonce not found");
-  } catch (e) { logger.debug(`[REGISTER] ADB error: ${(e as Error).message}`); }
+  } catch (error) { logger.debug(`[REGISTER] ADB error: ${(error as Error).message}`); }
   return { token: "", nonce: "" };
 }
 
-export async function execute(integrityToken?: string, nonce?: string, force = false): Promise<void> {
+async function registerCommand(integrityToken?: string, nonce?: string, force = false): Promise<void> {
   const existing = getSession();
   if (!force && existing?.privatePem && existing.attestationToken && !isJwtExpired(existing.attestationToken)) {
     logger.success(`Already registered (Device: ${existing.deviceId})`);
@@ -64,27 +72,63 @@ export async function execute(integrityToken?: string, nonce?: string, force = f
   }
 
   if (!force && existing?.privatePem && existing.attestationRefreshToken) {
+    const refreshSpinner = spinner();
+    refreshSpinner.start("Refreshing expired attestation...");
     try {
-      await withSpinner("Refreshing expired attestation...", () => attestDevice());
-      logger.success(`Registration refreshed (Device: ${getSession()?.deviceId})`);
+      await attestDevice();
+      refreshSpinner.stop(`Registration refreshed (Device: ${getSession()?.deviceId})`);
       return;
     } catch (error: unknown) {
-      logger.warn(`Attestation refresh failed: ${(error as Error).message}`);
+      refreshSpinner.stop(`Attestation refresh failed: ${(error as Error).message}`);
     }
   }
 
   if (!integrityToken || !nonce) {
-    const adb = await withSpinner("Checking ADB device...", () => extractAdbAttestation());
+    const attSpinner = spinner();
+    attSpinner.start("Attesting on device...");
+    const adb = await extractAdbAttestation();
     if (adb.token && adb.nonce) {
       integrityToken = adb.token;
       nonce = adb.nonce;
-      logger.success("Got attestation from ADB device.");
+      attSpinner.stop("Attestation captured from device.");
+    } else {
+      attSpinner.stop("No attestation found — enter token manually.");
     }
   }
 
   if (!integrityToken) integrityToken = await promptText("Play Integrity token");
   if (!nonce) nonce = await promptText("Play Integrity nonce");
 
-  await withSpinner("Registering...", () => registerIntegrity(integrityToken!, nonce!));
-  logger.success("PoP device key registered.");
+  const regSpinner = spinner();
+  regSpinner.start("Registering PoP key...");
+  try {
+    await registerIntegrity(integrityToken!, nonce!);
+    regSpinner.stop("PoP device key registered.");
+  } catch (error: unknown) {
+    regSpinner.stop("Registration failed.");
+    throw error;
+  }
+}
+
+export function register(cli: CAC): void {
+  cli
+    .command("register", "Register PoP device key")
+    .option("--token <token>", "Play Integrity token")
+    .option("--nonce <nonce>", "Play Integrity nonce")
+    .option("--file <path>", "JSON file containing integrity_token and nonce")
+    .option("--force", "Force re-registration even if already registered")
+    .action(async (options: Record<string, string>) => {
+      let integrityToken: string | undefined = options.token;
+      let nonce: string | undefined = options.nonce;
+      if (options.file) {
+        try {
+          const attestationFile = JSON.parse(readFileSync(options.file, "utf8")) as AttestationFile;
+          integrityToken ||= attestationFile.integrity_token;
+          nonce ||= attestationFile.nonce;
+        } catch (error) {
+          throw new Error(`Could not read attestation file: ${(error as Error).message}`);
+        }
+      }
+      await runCommand("Register", false, () => registerCommand(integrityToken, nonce, !!options.force));
+    });
 }

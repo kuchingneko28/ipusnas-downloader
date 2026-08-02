@@ -1,16 +1,18 @@
+import type { CAC } from "cac";
 import { searchBooks } from "../../api/client";
 import type { Book } from "../../api/types";
 import { logger, promptSelect, promptText, withSpinner } from "../ui";
-import * as borrow from "./borrow";
-import * as download from "./download";
-import * as returnAction from "./return";
+import { runCommand } from "./run";
+import { borrowCommand } from "./borrow";
+import { downloadCommand } from "./download";
+import { returnCommand } from "./return";
 
 const PAGE = 25;
 
 type SelectValue = Book | "__next" | "__prev" | null;
 type ActionValue = "borrow" | "download" | "return" | "back" | null;
 
-export async function execute(query?: string): Promise<void> {
+async function searchCommand(query?: string): Promise<void> {
   if (!query) {
     query = await promptText("Search query");
   }
@@ -49,7 +51,11 @@ export async function execute(query?: string): Promise<void> {
       if (picked === "__next" && hasMore) {
         offset += PAGE;
         await loadPage();
-        if (!results.length) { offset -= PAGE; break; }
+        if (!results.length) {
+          // Last page drifted — restore the page we were on instead of ending the command.
+          offset -= PAGE;
+          await loadPage();
+        }
       }
       if (picked === "__prev" && offset > 0) {
         offset -= PAGE;
@@ -66,9 +72,17 @@ export async function execute(query?: string): Promise<void> {
       { value: "back" as ActionValue, label: "← Back" },
     ]);
 
-    if (action === "borrow") await borrow.execute(picked.id, picked.book_title);
-    else if (action === "download") await download.execute(picked.id, picked.book_title);
-    else if (action === "return") await returnAction.execute(picked.id, picked.book_title);
+    if (action === "borrow") await borrowCommand(picked.id, picked.book_title);
+    else if (action === "download") await downloadCommand(picked.id, picked.book_title);
+    else if (action === "return") await returnCommand(picked.id, picked.book_title);
     break;
   }
+}
+
+export function register(cli: CAC): void {
+  cli
+    .command("search [query]", "Search catalog - select an action")
+    .action(async (query?: string) => {
+      await runCommand("Search", true, () => searchCommand(query));
+    });
 }

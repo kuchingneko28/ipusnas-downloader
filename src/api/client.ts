@@ -6,7 +6,7 @@ import { encryptPp2Borrow, popHeaders } from "../core/crypto";
 import { getSession, saveSession } from "../core/config";
 import { attestDevice, loginUser, BASE, HEADERS } from "./auth";
 import { logger } from "../cli/ui";
-import type { AccessData, Book, Epustaka, LoginData, Profile, ShelfItem } from "./types";
+import type { AccessData, Book, BookDetail, Epustaka, LoginData, Profile, ShelfItem } from "./types";
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ async function refreshUserToken(): Promise<string> {
   const data = "data" in json ? json.data : json;
   const newToken = data.access_token;
 
-  const updated = { ...session!, userToken: newToken, user: { ...session?.user!, ...data } as LoginData };
+  const updated = { ...session, userToken: newToken, user: { ...session.user, ...data } as LoginData };
   saveSession(updated);
   return newToken;
 }
@@ -91,9 +91,9 @@ async function trustPost<T>(path: string, body: Record<string, unknown>, deviceT
   const bodyString = JSON.stringify(body);
   const bodyBytes = Buffer.from(bodyString);
 
-  const signedHeaders = popHeaders(session!.privatePem!, JSON.stringify(session!.publicJwk!), "POST", path, bodyBytes);
+  const signedHeaders = popHeaders(session!.privatePem!, session!.publicJwk!, "POST", path, bodyBytes);
 
-  const headers: Record<string, string> = {
+  let headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
     Authorization: `Bearer ${deviceToken}`,
@@ -113,7 +113,15 @@ async function trustPost<T>(path: string, body: Record<string, unknown>, deviceT
   if (response.status === 401) {
     logger.debug("[API] 401 on trust endpoint. Refreshing device token...");
     const refreshed = await attestDevice(true);
-    headers.Authorization = `Bearer ${refreshed}`;
+    // attestDevice(force) rotates the PoP keypair — re-sign with the new keys.
+    const newSession = getSession();
+    headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${refreshed}`,
+      "X-User-Authorization": `Bearer ${userToken}`,
+      ...popHeaders(newSession!.privatePem!, newSession!.publicJwk!, "POST", path, bodyBytes),
+    };
     response = await fetch(url, { method: "POST", headers, body: bodyString });
   }
 
@@ -131,8 +139,8 @@ export async function searchBooks(query: string, limit = 25, offset = 0): Promis
   return apiGet<Book[]>(`${EP.SEARCH}?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
 }
 
-export async function getBookDetail(bookId: string): Promise<Record<string, unknown>> {
-  return apiGet(`${EP.BOOK_DETAIL}?book_id=${bookId}`);
+export async function getBookDetail(bookId: string): Promise<BookDetail> {
+  return apiGet<BookDetail>(`${EP.BOOK_DETAIL}?book_id=${bookId}`);
 }
 
 export async function getEpustaka(bookId: string): Promise<Epustaka> {
@@ -154,7 +162,7 @@ export async function listShelf(): Promise<ShelfItem[]> {
 
 // ─── Borrow ──────────────────────────────────────────────────────────────────
 
-export async function borrowBook(bookId: string): Promise<Record<string, unknown>> {
+export async function borrowBook(bookId: string): Promise<void> {
   const session = getSession();
   if (!session?.user) throw new Error("User not logged in");
 
@@ -168,7 +176,7 @@ export async function borrowBook(bookId: string): Promise<Record<string, unknown
 
   const deviceToken = await attestDevice();
   const orgId = String(
-    (detail.catalog_info as Record<string, unknown>)?.organization_id
+    detail.catalog_info?.organization_id
     || epustaka.organization_id
     || "1fe99d3c-b272-40cd-8d9c-a4871f4eaef2",
   );
@@ -185,7 +193,7 @@ export async function borrowBook(bookId: string): Promise<Record<string, unknown
     deviceToken,
   );
 
-  return trustPost<Record<string, unknown>>(EP.ACCESS, { credential, device_id: session.deviceId }, deviceToken);
+  await trustPost(EP.ACCESS, { credential, device_id: session.deviceId }, deviceToken);
 }
 
 // ─── DRM Key ─────────────────────────────────────────────────────────────────
@@ -207,7 +215,7 @@ export async function getSecureBorrowKey(
 
 // ─── Return ──────────────────────────────────────────────────────────────────
 
-export async function returnBook(borrowId: string): Promise<unknown> {
+export async function returnBook(borrowId: string): Promise<void> {
   const token = await getUserToken();
   const res = await fetch(EP.RETURN, {
     method: "POST",
@@ -215,5 +223,4 @@ export async function returnBook(borrowId: string): Promise<unknown> {
     body: JSON.stringify({ borrow_id: borrowId }),
   });
   if (!res.ok) throw new Error(`Return failed (${res.status}): ${await res.text().catch(() => res.statusText)}`);
-  return res.json();
 }

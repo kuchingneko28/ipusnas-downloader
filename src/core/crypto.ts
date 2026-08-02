@@ -14,35 +14,6 @@ import {
 import type { AccessData, BorrowPayload } from "../api/types";
 import { logger } from "../cli/ui";
 
-export interface JweEnvelope {
-  v?: string;
-  alg: string;
-  s: string;
-  n: string;
-  c: string;
-}
-
-export interface Pp2Payload {
-  temporary_key: string;
-  reencrypted_pdf_password: string;
-  reencrypted_zip_password: string;
-  password?: string;
-  file_url: string;
-  scope?: { book_id?: string; catalog_type?: string };
-  file_extension?: string;
-}
-
-export interface DrmResult {
-  urlFile: string;
-  zipPassword: string;
-  pdfPassword: string;
-}
-
-export interface P256KeyPair {
-  privatePem: string;
-  publicJwk: JwkPublicKey;
-}
-
 export interface JwkPublicKey {
   kty: string;
   crv: string;
@@ -50,7 +21,34 @@ export interface JwkPublicKey {
   y: string;
 }
 
-export interface PopHeaders {
+interface JweEnvelope {
+  v?: string;
+  alg: string;
+  s: string;
+  n: string;
+  c: string;
+}
+
+interface Pp2Payload {
+  temporary_key: string;
+  reencrypted_pdf_password: string;
+  reencrypted_zip_password: string;
+  password?: string;
+  file_url: string;
+}
+
+interface DrmResult {
+  urlFile: string;
+  zipPassword: string;
+  pdfPassword: string;
+}
+
+interface P256KeyPair {
+  privatePem: string;
+  publicJwk: JwkPublicKey;
+}
+
+interface PopHeaders {
   "X-Device-Public-Key": string;
   "X-Body-SHA256": string;
   "X-Timestamp": string;
@@ -81,7 +79,7 @@ function pp2DeriveKey(jwt: string, salt: Buffer): Buffer {
 
 // ─── PP2 JWE Decrypt ─────────────────────────────────────────────────────────
 
-export function decryptJwe(raw: string, jwt: string): Pp2Payload {
+export function decryptJwe(raw: string, jwt: string): Record<string, unknown> {
   const input = raw.startsWith("PP2.") ? raw.slice(4) : raw;
   const jwe: JweEnvelope = JSON.parse(Buffer.from(input, "base64url").toString());
 
@@ -116,7 +114,7 @@ export function decryptDrmPassword(accessData: AccessData, jwt: string): DrmResu
 
   if (raw.startsWith("PP2.") || raw.startsWith("{") || raw.startsWith("eyJ")) {
     logger.debug("[CRYPTO] decrypting PP2 JWE payload");
-    const decrypted = decryptJwe(raw, jwt);
+    const decrypted = decryptJwe(raw, jwt) as unknown as Pp2Payload;
     urlFile = decrypted.file_url || urlFile;
     logger.debug(`[CRYPTO] url_file=${urlFile.slice(0, 60)}...`);
 
@@ -176,7 +174,7 @@ export function signPayloadEcdsa(privatePem: string, payload: string): string {
 
 export function popHeaders(
   privatePem: string,
-  publicJwk: JwkPublicKey | string,
+  publicJwk: JwkPublicKey,
   method: string,
   path: string,
   body: Buffer = Buffer.alloc(0),
@@ -186,10 +184,9 @@ export function popHeaders(
   const nonce = randomBytes(8).toString("hex");
   const jti = crypto.randomUUID();
   const sig = signPayloadEcdsa(privatePem, `${method.toUpperCase()}\n${path}\n${bodySha}\n${ts}\n${nonce}\n${jti}`);
-  const jwkStr = typeof publicJwk === "string" ? publicJwk : JSON.stringify(publicJwk);
 
   return {
-    "X-Device-Public-Key": jwkStr,
+    "X-Device-Public-Key": JSON.stringify(publicJwk),
     "X-Body-SHA256": bodySha,
     "X-Timestamp": ts,
     "X-Nonce": nonce,

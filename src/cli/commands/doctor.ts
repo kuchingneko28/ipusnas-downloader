@@ -1,7 +1,9 @@
+import type { CAC } from "cac";
 import { getSession } from "../../core/config";
 import { logger } from "../ui";
+import { runCommand } from "./run";
 
-export async function execute(): Promise<void> {
+async function doctorCommand(): Promise<void> {
   const session = getSession();
   const hasPop = !!session?.privatePem && !!session?.attestationToken;
   const hasUser = !!session?.userToken;
@@ -14,4 +16,10 @@ export async function execute(): Promise<void> {
     logger.debug(`  userToken         : ${session.userToken ? session.userToken.slice(0, 40) + "..." : "none"}`);
     logger.debug(`  deviceId          : ${session.deviceId}`);
   }
+}
+
+export function register(cli: CAC): void {
+  cli.command("doctor", "System health check").action(async () => {
+    await runCommand("Doctor", false, doctorCommand);
+  });
 }
