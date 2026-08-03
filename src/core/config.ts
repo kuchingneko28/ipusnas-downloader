@@ -86,7 +86,7 @@ export function saveSession(data: SessionData) {
   try {
     fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), "utf-8");
   } catch (err) {
-    console.error("Failed to save config:", err);
+    logger.error(`Failed to save config: ${(err as Error).message}`);
   }
 }
 

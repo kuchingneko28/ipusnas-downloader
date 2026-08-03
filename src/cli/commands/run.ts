@@ -1,15 +1,24 @@
 import { loginUser } from "../../api/auth";
 import { getSession } from "../../core/config";
-import { intro, outro, withSpinner } from "../ui";
+import { intro, logger, outro, withSpinner } from "../ui";
 
 /**
  * Standard command envelope: title banner, optional login gate, then the
- * handler, then a closing "Done." line.
+ * handler, then a closing line. Any failure in the handler is caught here so
+ * every command exits with a friendly message instead of an unhandled
+ * rejection (cac never awaits the action promise).
  */
 export async function runCommand(name: string, needsLogin: boolean, handler: () => Promise<void>): Promise<void> {
   intro(name);
-  if (needsLogin) await ensureLogin();
-  await handler();
+  try {
+    if (needsLogin) await ensureLogin();
+    await handler();
+  } catch (err: unknown) {
+    logger.error((err as Error).message);
+    outro("Failed.");
+    process.exitCode = 1;
+    return;
+  }
   outro("Done.");
 }
 
