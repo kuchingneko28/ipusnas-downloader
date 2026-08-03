@@ -14,7 +14,6 @@ const EP = {
   SEARCH: `${BASE}/api/webhook/search-book`,
   BOOK_DETAIL: `${BASE}/api/webhook/book-detail`,
   EPUSTAKA: `${BASE}/api/webhook/epustaka-borrow`,
-  EPUSTAKA_LIST: `${BASE}/api/webhook/landing-epustaka-list`,
   PROFILE: `${BASE}/api/webhook/profile`,
   ACCESS: "/trust/api/access",
   SECURE_KEY: "/trust/api/secure_borrowkey",
@@ -146,10 +145,6 @@ export async function getBookDetail(bookId: string): Promise<BookDetail> {
 export async function getEpustaka(bookId: string): Promise<Epustaka> {
   const list = await apiGet<Epustaka[] | Epustaka>(`${EP.EPUSTAKA}?book_id=${bookId}`);
   return Array.isArray(list) ? list[0] : list;
-}
-
-export async function getEpustakaList(): Promise<Epustaka[]> {
-  return apiGet<Epustaka[]>(EP.EPUSTAKA_LIST);
 }
 
 export async function getProfile(): Promise<Profile> {

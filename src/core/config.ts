@@ -29,7 +29,7 @@ interface ConfigFile {
 }
 
 let cache: SessionData | null = null;
-let configPath = path.resolve(process.cwd(), "config.json");
+const configPath = path.resolve(process.cwd(), "config.json");
 
 function loadSession(): SessionData | null {
   try {
