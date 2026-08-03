@@ -146,7 +146,7 @@ export async function downloadCommand(bookId?: string, title?: string): Promise<
         }
       }
     } catch (error: unknown) {
-      logger.error(`Failed to extract archive: ${(error as Error).message}`);
+      logger.error(`Failed to extract or decrypt archive: ${(error as Error).message}`);
     }
   } finally {
     fs.rmSync(extractDir, { recursive: true, force: true });

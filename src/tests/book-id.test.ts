@@ -11,4 +11,8 @@ describe("Book ID extraction", () => {
     const url = "https://ipusnas.perpusnas.go.id/book/53aa0e2e-8092-4aac-884f-29d0961e22fa/";
     expect(extractBookId(url)).toBe("53aa0e2e-8092-4aac-884f-29d0961e22fa");
   });
+
+  it("throws on input without a UUID", () => {
+    expect(() => extractBookId("not-a-book-id")).toThrow(/Invalid Book ID or URL/);
+  });
 });

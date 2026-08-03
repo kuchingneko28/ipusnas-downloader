@@ -29,15 +29,15 @@ describe("Real API Integration", () => {
 
     const session = getSession();
     expect(session?.attestationToken).toBe(token);
-  });
+  }, 30000);
 
   it("searches", async () => {
     const books = await searchBooks("prabowo");
     expect(books.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it("lists shelf", async () => {
     const shelf = await listShelf();
     expect(Array.isArray(shelf)).toBe(true);
-  });
+  }, 30000);
 });

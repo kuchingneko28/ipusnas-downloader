@@ -1,5 +1,6 @@
 import type { CAC } from "cac";
 import { returnBook, listShelf } from "../../api/client";
+import { extractBookId } from "../../utils/book-id";
 import { logger, promptText, withSpinner } from "../ui";
 import { runCommand } from "./run";
 
@@ -24,6 +25,6 @@ export function register(cli: CAC): void {
   cli
     .command("return [input]", "Return a borrowed book by ID or URL")
     .action(async (input?: string) => {
-      await runCommand("Return", true, () => returnCommand(input));
+      await runCommand("Return", true, () => returnCommand(input ? extractBookId(input) : undefined));
     });
 }
