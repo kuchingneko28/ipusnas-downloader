@@ -3,7 +3,6 @@
  * Input can be a full URL or just the ID
  */
 export function extractBookId(input: string): string {
-  // Regex for UUID
   const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
   const match = input.match(uuidRegex);
@@ -12,5 +11,5 @@ export function extractBookId(input: string): string {
     return match[0];
   }
 
-  throw new Error("Invalid Book ID or URL (UUID not found)");
+  throw new Error('Invalid Book ID or URL (UUID not found)');
 }

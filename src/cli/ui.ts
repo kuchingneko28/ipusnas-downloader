@@ -2,7 +2,7 @@
  * iPusnas UI — clack
  */
 
-import * as clack from "@clack/prompts";
+import * as clack from '@clack/prompts';
 
 export const { intro, outro } = clack;
 export const spinner = clack.spinner;
@@ -54,10 +54,7 @@ export async function promptPassword(message: string): Promise<string> {
   return value as string;
 }
 
-export async function promptSelect<Value>(
-  message: string,
-  options: clack.Option<Value>[],
-): Promise<Value> {
+export async function promptSelect<Value>(message: string, options: clack.Option<Value>[]): Promise<Value> {
   const value = await clack.select({ message, options });
   if (clack.isCancel(value)) process.exit(0);
   return value as Value;

@@ -2,14 +2,14 @@
  * iPusnas Auth — Login + PoP Device Attestation
  */
 
-import { generateP256KeyPair, popHeaders, type JwkPublicKey } from "../core/crypto";
-import { getSession, saveSession, type SessionData } from "../core/config";
-import { logger } from "../cli/ui";
-import type { AttestResponse, LoginData, LoginResponse, NonceResponse } from "./types";
+import { generateP256KeyPair, popHeaders, type JwkPublicKey } from '../core/crypto';
+import { getSession, saveSession, type SessionData } from '../core/config';
+import { logger } from '../cli/ui';
+import type { AttestResponse, LoginData, LoginResponse, NonceResponse } from './types';
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-export const BASE = "https://backend-ipusnas.perpusnas.go.id";
+export const BASE = 'https://backend-ipusnas.perpusnas.go.id';
 
 const EP = {
   NONCE: `${BASE}/trust/api/nonce`,
@@ -20,46 +20,41 @@ const EP = {
 
 // ─── Headers ─────────────────────────────────────────────────────────────────
 
-export const HEADERS: Record<string, string> = {
-  "User-Agent": "okhttp/5.3.2",
-  "Content-Type": "application/vnd.api+json",
-  Accept: "application/vnd.api+json",
-};
+function jsonHeaders(contentType: string): Record<string, string> {
+  return { 'User-Agent': 'okhttp/5.3.2', 'Content-Type': contentType, Accept: contentType };
+}
 
-const TRUST_HEADERS: Record<string, string> = {
-  "User-Agent": "okhttp/5.3.2",
-  "Content-Type": "application/json",
-  Accept: "application/json",
-};
+export const HEADERS = jsonHeaders('application/vnd.api+json');
+const TRUST_HEADERS = jsonHeaders('application/json');
 
 // ─── Nonce ───────────────────────────────────────────────────────────────────
 
 async function getNonce(): Promise<string> {
   logger.debug(`[API] GET ${EP.NONCE}`);
-  const res = await fetch(EP.NONCE, { headers: TRUST_HEADERS });
-  const json = (await res.json()) as NonceResponse;
-  if (!json.nonce) throw new Error("Failed to get nonce");
-  return json.nonce;
+  const response = await fetch(EP.NONCE, { headers: TRUST_HEADERS });
+  const nonceResponse = (await response.json()) as NonceResponse;
+  if (!nonceResponse.nonce) throw new Error('Failed to get nonce');
+  return nonceResponse.nonce;
 }
 
 // ─── Attestation Refresh (PoP-signed) ────────────────────────────────────────
 
 async function refreshAttestation(session: SessionData): Promise<string> {
-  if (!session.attestationRefreshToken) throw new Error("No attestation refresh token");
+  if (!session.attestationRefreshToken) throw new Error('No attestation refresh token');
 
   const body = JSON.stringify({ refresh_token: session.attestationRefreshToken });
   const signedHeaders = popHeaders(
     session.privatePem!,
     session.publicJwk!,
-    "POST",
-    "/trust/api/token/refresh",
+    'POST',
+    '/trust/api/token/refresh',
     Buffer.from(body),
   );
 
   logger.debug(`[API] POST ${EP.REFRESH}`);
   const response = await fetch(EP.REFRESH, {
-    method: "POST",
-    headers: { ...TRUST_HEADERS, ...signedHeaders, Authorization: `Bearer ${session.attestationToken || ""}` },
+    method: 'POST',
+    headers: { ...TRUST_HEADERS, ...signedHeaders, Authorization: `Bearer ${session.attestationToken || ''}` },
     body,
   });
 
@@ -67,7 +62,7 @@ async function refreshAttestation(session: SessionData): Promise<string> {
 
   const responseBody = (await response.json()) as Record<string, unknown>;
   const responseData = (responseBody.data ?? responseBody) as Record<string, unknown>;
-  const token = String(responseData.access_token || responseData.device_attestation_token || "");
+  const token = String(responseData.access_token || responseData.device_attestation_token || '');
 
   const updated: SessionData = {
     ...session,
@@ -83,7 +78,7 @@ async function refreshAttestation(session: SessionData): Promise<string> {
 
 export function isJwtExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const payload = JSON.parse(atob(token.split('.')[1]));
     return Date.now() / 1000 > (payload.exp || 0);
   } catch {
     return true;
@@ -92,17 +87,17 @@ export function isJwtExpired(token: string): boolean {
 
 function buildAttestBody(nonce: string, integrityToken: string, deviceId: string): string {
   return JSON.stringify({
-    platform: "android",
+    platform: 'android',
     nonce,
-    environment: "prod",
+    environment: 'prod',
     attestation_data: { integrity_token: integrityToken },
     device_info: {
       device_id: deviceId,
-      model: "SM-G998B",
-      os_version: "13",
+      model: 'SM-G998B',
+      os_version: '13',
       sdk_version: 33,
-      app_version: "2.1.4",
-      package_name: "mam.reader.ipusnas",
+      app_version: '2.1.4',
+      package_name: 'mam.reader.ipusnas',
     },
   });
 }
@@ -113,18 +108,19 @@ async function postAttest(
   publicJwk: JwkPublicKey,
   label: string,
 ): Promise<AttestResponse & { access_token: string }> {
-  const signedHeaders = popHeaders(privatePem, publicJwk, "POST", "/trust/api/attest", Buffer.from(body));
+  const signedHeaders = popHeaders(privatePem, publicJwk, 'POST', '/trust/api/attest', Buffer.from(body));
   logger.debug(`[API] POST ${EP.ATTEST}`);
   const response = await fetch(EP.ATTEST, {
-    method: "POST",
+    method: 'POST',
     headers: { ...TRUST_HEADERS, ...signedHeaders },
     body,
   });
   if (!response.ok) throw new Error(`${label} failed: ${response.status} ${await response.text()}`);
-  const json = (await response.json()) as AttestResponse & { data?: AttestResponse };
-  const data = json.data ?? json;
-  if (json.success === false || !data.access_token) throw new Error(`${label} failed: ${JSON.stringify(json)}`);
-  return data as AttestResponse & { access_token: string };
+  const responseBody = (await response.json()) as AttestResponse & { data?: AttestResponse };
+  const attestationData = responseBody.data ?? responseBody;
+  if (responseBody.success === false || !attestationData.access_token)
+    throw new Error(`${label} failed: ${JSON.stringify(responseBody)}`);
+  return attestationData as AttestResponse & { access_token: string };
 }
 
 export async function attestDevice(force = false): Promise<string> {
@@ -132,14 +128,14 @@ export async function attestDevice(force = false): Promise<string> {
 
   // Reuse valid token
   if (!force && session?.attestationToken && session?.privatePem && !isJwtExpired(session.attestationToken)) {
-    logger.debug("[AUTH] reusing valid attestation token");
+    logger.debug('[AUTH] reusing valid attestation token');
     return session.attestationToken;
   }
 
   // Try refresh if we have PoP keys
   if (session?.attestationRefreshToken && session?.privatePem && session?.publicJwk) {
     try {
-      logger.debug("[AUTH] attempting attestation refresh");
+      logger.debug('[AUTH] attempting attestation refresh');
       return await refreshAttestation(session);
     } catch (error: unknown) {
       logger.debug(`[AUTH] Refresh failed: ${(error as Error).message}`);
@@ -147,34 +143,34 @@ export async function attestDevice(force = false): Promise<string> {
   }
 
   // Generate fresh PoP keypair
-  logger.debug("[AUTH] generating fresh PoP keypair + attestation");
+  logger.debug('[AUTH] generating fresh PoP keypair + attestation');
   const { privatePem, publicJwk } = generateP256KeyPair();
   const nonce = await getNonce();
   const deviceId = session?.deviceId || crypto.randomUUID();
-  const body = buildAttestBody(nonce, "", deviceId);
+  const body = buildAttestBody(nonce, '', deviceId);
 
-  const data = await postAttest(body, privatePem, publicJwk, "Attestation");
-  persistAttestation(data, deviceId, privatePem, publicJwk);
+  const attestation = await postAttest(body, privatePem, publicJwk, 'Attestation');
+  persistAttestation(attestation, deviceId, privatePem, publicJwk);
 
-  return data.access_token;
+  return attestation.access_token;
 }
 
 function persistAttestation(
-  data: AttestResponse & { access_token: string },
+  attestation: AttestResponse & { access_token: string },
   fallbackDeviceId: string,
   privatePem: string,
   publicJwk: JwkPublicKey,
 ): void {
-  const serverDeviceId = data.device_id || fallbackDeviceId;
+  const serverDeviceId = attestation.device_id || fallbackDeviceId;
   logger.debug(`[AUTH] attestation success device_id=${serverDeviceId}`);
-  const currentSession: SessionData = getSession() || { deviceId: "" };
+  const currentSession: SessionData = getSession() || { deviceId: '' };
   saveSession({
     ...currentSession,
     deviceId: serverDeviceId,
     privatePem,
     publicJwk,
-    attestationToken: data.access_token,
-    attestationRefreshToken: data.refresh_token || "",
+    attestationToken: attestation.access_token,
+    attestationRefreshToken: attestation.refresh_token || '',
   });
 }
 
@@ -186,8 +182,8 @@ export async function registerIntegrity(integrityToken: string, nonce: string): 
   const deviceId = session?.deviceId || crypto.randomUUID();
   const body = buildAttestBody(nonce, integrityToken, deviceId);
 
-  const data = await postAttest(body, privatePem, publicJwk, "Registration");
-  persistAttestation(data, deviceId, privatePem, publicJwk);
+  const attestation = await postAttest(body, privatePem, publicJwk, 'Registration');
+  persistAttestation(attestation, deviceId, privatePem, publicJwk);
 }
 
 // ─── Login ───────────────────────────────────────────────────────────────────
@@ -195,30 +191,36 @@ export async function registerIntegrity(integrityToken: string, nonce: string): 
 export async function loginUser(email?: string, password?: string): Promise<LoginData> {
   const resolvedEmail = email || process.env.IPUSNAS_EMAIL;
   const resolvedPassword = password || process.env.IPUSNAS_PASSWORD;
-  if (!resolvedEmail || !resolvedPassword) throw new Error("Email and Password required (env: IPUSNAS_EMAIL, IPUSNAS_PASSWORD)");
+  if (!resolvedEmail || !resolvedPassword)
+    throw new Error('Email and Password required (env: IPUSNAS_EMAIL, IPUSNAS_PASSWORD)');
 
   logger.debug(`[API] POST ${EP.LOGIN}`);
-  const res = await fetch(EP.LOGIN, {
-    method: "POST",
+  const response = await fetch(EP.LOGIN, {
+    method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ email: resolvedEmail, password: resolvedPassword }),
   });
 
-  const text = await res.text();
-  let json: LoginResponse;
+  const text = await response.text();
+  let loginBody: LoginResponse;
   try {
-    json = JSON.parse(text);
+    loginBody = JSON.parse(text);
   } catch {
-    throw new Error(`Login failed (not JSON): ${res.status} ${text.slice(0, 100)}`);
+    throw new Error(`Login failed (not JSON): ${response.status} ${text.slice(0, 100)}`);
   }
 
-  if (!res.ok || (!json.success && !json.data)) {
-    throw new Error(json.message || `Login failed: ${res.status}`);
+  if (!response.ok || (!loginBody.success && !loginBody.data)) {
+    throw new Error(loginBody.message || `Login failed: ${response.status}`);
   }
 
-  const currentSession: SessionData = getSession() || { deviceId: "" };
-  saveSession({ ...currentSession, userToken: json.data?.access_token, email: resolvedEmail, user: json.data });
-  logger.debug(`[AUTH] login success email=${resolvedEmail} user_id=${json.data?.id}`);
+  const currentSession: SessionData = getSession() || { deviceId: '' };
+  saveSession({
+    ...currentSession,
+    userToken: loginBody.data?.access_token,
+    email: resolvedEmail,
+    user: loginBody.data,
+  });
+  logger.debug(`[AUTH] login success email=${resolvedEmail} user_id=${loginBody.data?.id}`);
 
-  return json.data!;
+  return loginBody.data!;
 }

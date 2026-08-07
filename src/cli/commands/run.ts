@@ -1,6 +1,6 @@
-import { loginUser } from "../../api/auth";
-import { getSession } from "../../core/config";
-import { intro, logger, outro, withSpinner } from "../ui";
+import { loginUser } from '../../api/auth';
+import { getSession } from '../../core/config';
+import { intro, logger, outro, withSpinner } from '../ui';
 
 /**
  * Standard command envelope: title banner, optional login gate, then the
@@ -15,11 +15,11 @@ export async function runCommand(name: string, needsLogin: boolean, handler: () 
     await handler();
   } catch (err: unknown) {
     logger.error((err as Error).message);
-    outro("Failed.");
+    outro('Failed.');
     process.exitCode = 1;
     return;
   }
-  outro("Done.");
+  outro('Done.');
 }
 
 async function ensureLogin(): Promise<void> {
@@ -27,7 +27,7 @@ async function ensureLogin(): Promise<void> {
 
   if (process.env.IPUSNAS_EMAIL && process.env.IPUSNAS_PASSWORD) {
     try {
-      await withSpinner("Auto-logging in...", () => loginUser());
+      await withSpinner('Auto-logging in...', () => loginUser());
       return;
     } catch {
       // Fall through to the interactive login.
@@ -35,6 +35,6 @@ async function ensureLogin(): Promise<void> {
   }
 
   // Dynamic import avoids a static cycle: login.ts must not depend on run.ts.
-  const { loginCommand } = await import("./login");
+  const { loginCommand } = await import('./login');
   await loginCommand();
 }

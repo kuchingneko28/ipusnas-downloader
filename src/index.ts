@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
-import { cac } from "cac";
-import { registerCommands } from "./cli/commands";
-import { logger, setVerbose } from "./cli/ui";
-import packageJson from "../package.json";
+import { cac } from 'cac';
+import { registerCommands } from './cli/commands';
+import { logger, setVerbose } from './cli/ui';
+import packageJson from '../package.json';
 
-const cli = cac("ipusnas");
-cli.option("--verbose", "Enable verbose logging");
+const cli = cac('ipusnas');
+cli.option('--verbose', 'Enable verbose logging');
 registerCommands(cli);
 
 cli.help();
@@ -23,4 +23,3 @@ try {
   logger.error((err as Error).message);
   process.exitCode = 1;
 }
-

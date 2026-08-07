@@ -17,7 +17,6 @@ export interface LoginData {
   email?: string;
   name?: string;
   id: string;
-  organizations?: { id: string; name: string };
 }
 
 export interface LoginResponse {
@@ -28,14 +27,12 @@ export interface LoginResponse {
 
 export interface NonceResponse {
   nonce: string;
-  expires_in?: number;
 }
 
 export interface Book {
   id: string;
   book_title: string;
   author_name: string;
-  cover_url: string;
 }
 
 export interface BookDetail {
@@ -49,14 +46,12 @@ export interface ShelfItem {
   book_author?: string;
   borrow_end_date?: string;
   epustaka_id?: string;
-  organization_id?: string;
 }
 
 export interface Profile {
   id: string;
   email: string;
   name: string;
-  organizations?: { id: string; name: string };
 }
 
 export interface Epustaka {
@@ -68,8 +63,6 @@ export interface AccessData {
   payload?: string;
   url_file?: string;
   file_url?: string;
-  borrow_id?: string;
-  id?: string;
   password?: string;
 }
 
@@ -81,4 +74,3 @@ export interface BorrowPayload {
   school_id: string;
   ts: number;
 }
-

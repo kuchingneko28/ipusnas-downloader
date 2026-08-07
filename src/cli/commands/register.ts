@@ -1,14 +1,14 @@
-import { $ } from "bun";
-import type { CAC } from "cac";
-import { readFileSync } from "node:fs";
-import { attestDevice, isJwtExpired, registerIntegrity } from "../../api/auth";
-import { getSession } from "../../core/config";
-import { logger, promptText, spinner } from "../ui";
-import { runCommand } from "./run";
+import { $ } from 'bun';
+import type { CAC } from 'cac';
+import { readFileSync } from 'node:fs';
+import { attestDevice, isJwtExpired, registerIntegrity } from '../../api/auth';
+import { getSession } from '../../core/config';
+import { logger, promptText, spinner } from '../ui';
+import { runCommand } from './run';
 
-const ATTEST_FILE = "/sdcard/Android/data/mam.reader.ipusnas/files/ipusnas_attestation.json";
-const PACKAGE_NAME = "mam.reader.ipusnas";
-const ATTEST_ACTIVITY = "mam.reader.ipusnas/mam.reader.ilibrary.attestation.TriggerAttestActivity";
+const ATTEST_FILE = '/sdcard/Android/data/mam.reader.ipusnas/files/ipusnas_attestation.json';
+const PACKAGE_NAME = 'mam.reader.ipusnas';
+const ATTEST_ACTIVITY = 'mam.reader.ipusnas/mam.reader.ilibrary.attestation.TriggerAttestActivity';
 
 interface AttestationFile {
   integrity_token?: string;
@@ -19,12 +19,12 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
   try {
     const devices = await $`adb devices`.text();
     logger.debug(`[REGISTER] adb devices: ${devices.trim()}`);
-    if (!devices.includes("\tdevice")) return { token: "", nonce: "" };
+    if (!devices.includes('\tdevice')) return { token: '', nonce: '' };
 
     // Stream logcat live in the background: `adb logcat -d` dumps miss the app's
     // ATTEST_DEBUG lines on some devices (lines evicted from the buffer before the
     // dump), while a live stream drains them in real time.
-    const logProc = Bun.spawn(["adb", "logcat", "-s", "ATTEST_DEBUG"], { stdout: "pipe" });
+    const logProc = Bun.spawn(['adb', 'logcat', '-s', 'ATTEST_DEBUG'], { stdout: 'pipe' });
 
     // Delete the attestation file so we only accept a fresh nonce/token (nonce is single-use).
     // .quiet(): suppress adb's own stdout (e.g. `Starting: Intent ...`) so it doesn't corrupt the spinner.
@@ -36,7 +36,7 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
     // attestation; poll for it (fast and reliable).
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const json = await $`adb shell cat ${ATTEST_FILE}`.text().catch(() => "");
+      const json = await $`adb shell cat ${ATTEST_FILE}`.text().catch(() => '');
       if (json) {
         try {
           const parsed = JSON.parse(json) as AttestationFile;
@@ -44,7 +44,9 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
             logProc.kill();
             return { token: parsed.integrity_token, nonce: parsed.nonce };
           }
-        } catch { /* partial write, retry */ }
+        } catch {
+          /* partial write, retry */
+        }
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -59,9 +61,11 @@ async function extractAdbAttestation(): Promise<{ token: string; nonce: string }
       logger.debug(`[REGISTER] token=${tokenMatch[1].slice(0, 20)}... nonce=${nonceMatch[1].slice(0, 20)}...`);
       return { token: tokenMatch[1], nonce: nonceMatch[1] };
     }
-    logger.debug("[REGISTER] token/nonce not found");
-  } catch (error) { logger.debug(`[REGISTER] ADB error: ${(error as Error).message}`); }
-  return { token: "", nonce: "" };
+    logger.debug('[REGISTER] token/nonce not found');
+  } catch (error) {
+    logger.debug(`[REGISTER] ADB error: ${(error as Error).message}`);
+  }
+  return { token: '', nonce: '' };
 }
 
 async function registerCommand(integrityToken?: string, nonce?: string, force = false): Promise<void> {
@@ -73,7 +77,7 @@ async function registerCommand(integrityToken?: string, nonce?: string, force = 
 
   if (!force && existing?.privatePem && existing.attestationRefreshToken) {
     const refreshSpinner = spinner();
-    refreshSpinner.start("Refreshing expired attestation...");
+    refreshSpinner.start('Refreshing expired attestation...');
     try {
       await attestDevice();
       refreshSpinner.stop(`Registration refreshed (Device: ${getSession()?.deviceId})`);
@@ -85,50 +89,50 @@ async function registerCommand(integrityToken?: string, nonce?: string, force = 
 
   if (!integrityToken || !nonce) {
     const attSpinner = spinner();
-    attSpinner.start("Attesting on device...");
+    attSpinner.start('Attesting on device...');
     const adb = await extractAdbAttestation();
     if (adb.token && adb.nonce) {
       integrityToken = adb.token;
       nonce = adb.nonce;
-      attSpinner.stop("Attestation captured from device.");
+      attSpinner.stop('Attestation captured from device.');
     } else {
-      attSpinner.stop("No attestation found — enter token manually.");
+      attSpinner.stop('No attestation found — enter token manually.');
     }
   }
 
-  if (!integrityToken) integrityToken = await promptText("Play Integrity token");
-  if (!nonce) nonce = await promptText("Play Integrity nonce");
+  if (!integrityToken) integrityToken = await promptText('Play Integrity token');
+  if (!nonce) nonce = await promptText('Play Integrity nonce');
 
   const regSpinner = spinner();
-  regSpinner.start("Registering PoP key...");
+  regSpinner.start('Registering PoP key...');
   try {
     await registerIntegrity(integrityToken!, nonce!);
-    regSpinner.stop("PoP device key registered.");
+    regSpinner.stop('PoP device key registered.');
   } catch (error: unknown) {
-    regSpinner.stop("Registration failed.");
+    regSpinner.stop('Registration failed.');
     throw error;
   }
 }
 
 export function register(cli: CAC): void {
   cli
-    .command("register", "Register PoP device key")
-    .option("--token <token>", "Play Integrity token")
-    .option("--nonce <nonce>", "Play Integrity nonce")
-    .option("--file <path>", "JSON file containing integrity_token and nonce")
-    .option("--force", "Force re-registration even if already registered")
+    .command('register', 'Register PoP device key')
+    .option('--token <token>', 'Play Integrity token')
+    .option('--nonce <nonce>', 'Play Integrity nonce')
+    .option('--file <path>', 'JSON file containing integrity_token and nonce')
+    .option('--force', 'Force re-registration even if already registered')
     .action(async (options: Record<string, string>) => {
       let integrityToken: string | undefined = options.token;
       let nonce: string | undefined = options.nonce;
       if (options.file) {
         try {
-          const attestationFile = JSON.parse(readFileSync(options.file, "utf8")) as AttestationFile;
+          const attestationFile = JSON.parse(readFileSync(options.file, 'utf8')) as AttestationFile;
           integrityToken ||= attestationFile.integrity_token;
           nonce ||= attestationFile.nonce;
         } catch (error) {
           throw new Error(`Could not read attestation file: ${(error as Error).message}`);
         }
       }
-      await runCommand("Register", false, () => registerCommand(integrityToken, nonce, !!options.force));
+      await runCommand('Register', false, () => registerCommand(integrityToken, nonce, !!options.force));
     });
 }

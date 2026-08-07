@@ -20,12 +20,12 @@
   "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.5.18",
     "cac": "^7.0.0"
   },
   "devDependencies": {
-    "@types/adm-zip": "^0.5.7",
+    "@types/adm-zip": "^0.5.8",
     "@types/bun": "latest",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   }
 }

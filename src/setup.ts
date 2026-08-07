@@ -2,19 +2,19 @@
  * iPusnas Setup — install qpdf + build
  */
 
-import { $ } from "bun";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { logger, withSpinner } from "./cli/ui";
+import { $ } from 'bun';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { logger, withSpinner } from './cli/ui';
 
 interface GitHubRelease {
   tag_name: string;
 }
 
 const PLATFORMS: Record<string, (version: string) => string> = {
-  "linux-x64": (version) => `qpdf-${version}-bin-linux-x86_64.zip`,
-  "win32-x64": (version) => `qpdf-${version}-msvc64.zip`,
+  'linux-x64': (version) => `qpdf-${version}-bin-linux-x86_64.zip`,
+  'win32-x64': (version) => `qpdf-${version}-msvc64.zip`,
 };
 
 async function hasCommand(name: string): Promise<boolean> {
@@ -22,16 +22,16 @@ async function hasCommand(name: string): Promise<boolean> {
 }
 
 async function getLatestVersion(): Promise<string> {
-  const res = await fetch("https://api.github.com/repos/qpdf/qpdf/releases/latest");
-  if (!res.ok) throw new Error(`${res.status}`);
-  const data = (await res.json()) as GitHubRelease;
-  return data.tag_name.replace(/^v/, "");
+  const response = await fetch('https://api.github.com/repos/qpdf/qpdf/releases/latest');
+  if (!response.ok) throw new Error(`${response.status}`);
+  const release = (await response.json()) as GitHubRelease;
+  return release.tag_name.replace(/^v/, '');
 }
 
 async function downloadFile(url: string, dest: string): Promise<void> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(res.statusText);
-  await Bun.write(Bun.file(dest), await res.arrayBuffer());
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(response.statusText);
+  await Bun.write(Bun.file(dest), await response.arrayBuffer());
 }
 
 async function installQpdf(): Promise<void> {
@@ -43,26 +43,26 @@ async function installQpdf(): Promise<void> {
     return;
   }
 
-  const binDir = path.resolve(process.cwd(), "bin");
-  const qpdfDir = path.resolve(binDir, "qpdf");
+  const binDir = path.resolve(process.cwd(), 'bin');
+  const qpdfDir = path.resolve(binDir, 'qpdf');
 
   // Already installed?
   if (fs.existsSync(qpdfDir) && fs.readdirSync(qpdfDir).length > 0) {
-    if (os.platform() === "linux") {
-      const libDir = path.join(qpdfDir, "lib");
+    if (os.platform() === 'linux') {
+      const libDir = path.join(qpdfDir, 'lib');
       if (fs.existsSync(libDir)) {
-        const qpdfLibraries = fs.readdirSync(libDir).filter((file) => file.includes("libqpdf"));
+        const qpdfLibraries = fs.readdirSync(libDir).filter((file) => file.includes('libqpdf'));
         const brokenInstall = qpdfLibraries.some((file) => fs.statSync(path.join(libDir, file)).size < 100);
         if (brokenInstall) {
-          logger.warn("Broken qpdf install detected. Reinstalling...");
+          logger.warn('Broken qpdf install detected. Reinstalling...');
           fs.rmSync(qpdfDir, { recursive: true, force: true });
         } else {
-          logger.success("qpdf already installed.");
+          logger.success('qpdf already installed.');
           return;
         }
       }
     } else {
-      logger.success("qpdf already installed.");
+      logger.success('qpdf already installed.');
       return;
     }
   }
@@ -71,7 +71,7 @@ async function installQpdf(): Promise<void> {
   const assetName = getAssetName(version);
   const downloadUrl = `https://github.com/qpdf/qpdf/releases/download/v${version}/${assetName}`;
 
-  const tmpDir = path.resolve(process.cwd(), "temp_setup");
+  const tmpDir = path.resolve(process.cwd(), 'temp_setup');
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
   const zipPath = path.join(tmpDir, assetName);
@@ -79,16 +79,16 @@ async function installQpdf(): Promise<void> {
   try {
     await withSpinner(`Downloading qpdf ${version}...`, () => downloadFile(downloadUrl, zipPath));
 
-    await withSpinner("Extracting...", async () => {
-      if ((await hasCommand("unzip")) && os.platform() !== "win32") {
+    await withSpinner('Extracting...', async () => {
+      if ((await hasCommand('unzip')) && os.platform() !== 'win32') {
         try {
           await $`unzip -q -o ${zipPath} -d ${tmpDir}`;
         } catch {
-          const admZip = await import("adm-zip");
+          const admZip = await import('adm-zip');
           new admZip.default(zipPath).extractAllTo(tmpDir, true);
         }
       } else {
-        const admZip = await import("adm-zip");
+        const admZip = await import('adm-zip');
         new admZip.default(zipPath).extractAllTo(tmpDir, true);
       }
     });
@@ -97,7 +97,7 @@ async function installQpdf(): Promise<void> {
     let sourceRoot = tmpDir;
     const items = fs.readdirSync(tmpDir).filter((entry) => entry !== assetName);
     const subDirectories = items.filter((entry) => fs.statSync(path.join(tmpDir, entry)).isDirectory());
-    if (subDirectories.length === 1 && subDirectories[0].startsWith("qpdf")) {
+    if (subDirectories.length === 1 && subDirectories[0].startsWith('qpdf')) {
       sourceRoot = path.join(tmpDir, subDirectories[0]);
     }
 
@@ -106,15 +106,15 @@ async function installQpdf(): Promise<void> {
 
     if (sourceRoot === tmpDir) {
       fs.mkdirSync(qpdfDir, { recursive: true });
-      for (const item of items) {
-        if (item !== assetName) fs.renameSync(path.join(tmpDir, item), path.join(qpdfDir, item));
+      for (const fileName of items) {
+        if (fileName !== assetName) fs.renameSync(path.join(tmpDir, fileName), path.join(qpdfDir, fileName));
       }
     } else {
       fs.renameSync(sourceRoot, qpdfDir);
     }
 
-    if (os.platform() === "linux") {
-      const qpdfBin = path.join(qpdfDir, "bin", "qpdf");
+    if (os.platform() === 'linux') {
+      const qpdfBin = path.join(qpdfDir, 'bin', 'qpdf');
       if (fs.existsSync(qpdfBin)) fs.chmodSync(qpdfBin, 0o755);
     }
 
@@ -127,17 +127,17 @@ async function installQpdf(): Promise<void> {
 }
 
 async function main() {
-  logger.info("Installing dependencies...");
+  logger.info('Installing dependencies...');
   await $`bun install`;
 
   await installQpdf();
 
-  logger.info("Building project...");
+  logger.info('Building project...');
   try {
     await $`bun run build`;
-    logger.success("Build complete!");
+    logger.success('Build complete!');
   } catch {
-    logger.error("Build failed.");
+    logger.error('Build failed.');
     process.exit(1);
   }
 }

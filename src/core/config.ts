@@ -1,8 +1,8 @@
-import fs from "node:fs";
-import path from "node:path";
-import type { LoginData } from "../api/types";
-import type { JwkPublicKey } from "./crypto";
-import { logger } from "../cli/ui";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { LoginData } from '../api/types';
+import type { JwkPublicKey } from './crypto';
+import { logger } from '../cli/ui';
 
 export interface SessionData {
   deviceId: string;
@@ -29,62 +29,73 @@ interface ConfigFile {
 }
 
 let cache: SessionData | null = null;
-const configPath = path.resolve(process.cwd(), "config.json");
+// Config lives next to the working directory by default, but a compiled binary
+// (bin/ipusnas) can be run from anywhere — an env override keeps the session
+// in a stable, predictable place when desired.
+const configPath = path.resolve(process.env.IPUSNAS_CONFIG || path.join(process.cwd(), 'config.json'));
 
 function loadSession(): SessionData | null {
   try {
     if (fs.existsSync(configPath)) {
       logger.debug(`[CONFIG] loading from ${configPath}`);
-      const raw = JSON.parse(fs.readFileSync(configPath, "utf-8")) as ConfigFile;
+      const configData = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as ConfigFile;
       let publicJwk: JwkPublicKey | undefined;
-      if (raw.device_public_key) {
-        try { publicJwk = JSON.parse(raw.device_public_key); } catch { /* malformed */ }
+      if (configData.device_public_key) {
+        try {
+          publicJwk = JSON.parse(configData.device_public_key);
+        } catch {
+          /* malformed */
+        }
       }
       cache = {
-        deviceId: raw.device_id || "",
-        userToken: raw.user_token || "",
-        email: raw.email || "",
-        password: raw.password || "",
-        privatePem: raw.device_private_key || "",
+        deviceId: configData.device_id || '',
+        userToken: configData.user_token || '',
+        email: configData.email || '',
+        password: configData.password || '',
+        privatePem: configData.device_private_key || '',
         publicJwk,
-        attestationToken: raw.attestation_token || "",
-        attestationRefreshToken: raw.attestation_refresh_token || "",
-        user: raw.user || undefined,
+        attestationToken: configData.attestation_token || '',
+        attestationRefreshToken: configData.attestation_refresh_token || '',
+        user: configData.user || undefined,
       };
-      logger.debug(`[CONFIG] loaded device=${raw.device_id} email=${raw.email || "none"}`);
+      logger.debug(`[CONFIG] loaded device=${configData.device_id} email=${configData.email || 'none'}`);
       return cache;
     }
-    logger.debug("[CONFIG] config file not found");
-  } catch (error) { logger.debug(`[CONFIG] parse error: ${(error as Error).message}`); }
+    logger.debug('[CONFIG] config file not found');
+  } catch (error) {
+    logger.debug(`[CONFIG] parse error: ${(error as Error).message}`);
+  }
   return null;
 }
 
-export function saveSession(data: SessionData) {
-  cache = data;
+export function saveSession(updatedSession: SessionData) {
+  cache = updatedSession;
 
   let existing: ConfigFile = {};
   try {
     if (fs.existsSync(configPath)) {
-      existing = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   logger.debug(`[CONFIG] saving to ${configPath}`);
 
   const merged: ConfigFile = {
     ...existing,
-    device_id: data.deviceId,
-    user_token: data.userToken,
-    email: data.email,
-    password: data.password,
-    device_private_key: data.privatePem,
-    device_public_key: data.publicJwk ? JSON.stringify(data.publicJwk) : existing.device_public_key,
-    attestation_token: data.attestationToken,
-    attestation_refresh_token: data.attestationRefreshToken,
-    user: data.user,
+    device_id: updatedSession.deviceId,
+    user_token: updatedSession.userToken,
+    email: updatedSession.email,
+    password: updatedSession.password,
+    device_private_key: updatedSession.privatePem,
+    device_public_key: updatedSession.publicJwk ? JSON.stringify(updatedSession.publicJwk) : existing.device_public_key,
+    attestation_token: updatedSession.attestationToken,
+    attestation_refresh_token: updatedSession.attestationRefreshToken,
+    user: updatedSession.user,
   };
 
   try {
-    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), "utf-8");
+    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), 'utf-8');
   } catch (err) {
     logger.error(`Failed to save config: ${(err as Error).message}`);
   }
