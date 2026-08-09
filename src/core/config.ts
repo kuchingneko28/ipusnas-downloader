@@ -44,7 +44,9 @@ function loadSession(): SessionData | null {
         try {
           publicJwk = JSON.parse(configData.device_public_key);
         } catch {
-          /* malformed */
+          logger.warn(
+            `Config file has a malformed device_public_key — the session will load without a PoP key. Re-run \`ipusnas register\`.`,
+          );
         }
       }
       cache = {
@@ -77,7 +79,9 @@ export function saveSession(updatedSession: SessionData) {
       existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     }
   } catch {
-    /* ignore */
+    logger.warn(
+      `Could not read existing config at ${configPath} — it will be rewritten from the in-memory session, dropping any unread fields.`,
+    );
   }
   logger.debug(`[CONFIG] saving to ${configPath}`);
 

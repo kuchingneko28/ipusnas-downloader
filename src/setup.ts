@@ -23,14 +23,14 @@ async function hasCommand(name: string): Promise<boolean> {
 
 async function getLatestVersion(): Promise<string> {
   const response = await fetch('https://api.github.com/repos/qpdf/qpdf/releases/latest');
-  if (!response.ok) throw new Error(`${response.status}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
   const release = (await response.json()) as GitHubRelease;
   return release.tag_name.replace(/^v/, '');
 }
 
 async function downloadFile(url: string, dest: string): Promise<void> {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(response.statusText);
+  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
   await Bun.write(Bun.file(dest), await response.arrayBuffer());
 }
 
@@ -46,7 +46,6 @@ async function installQpdf(): Promise<void> {
   const binDir = path.resolve(process.cwd(), 'bin');
   const qpdfDir = path.resolve(binDir, 'qpdf');
 
-  // Already installed?
   if (fs.existsSync(qpdfDir) && fs.readdirSync(qpdfDir).length > 0) {
     if (os.platform() === 'linux') {
       const libDir = path.join(qpdfDir, 'lib');
@@ -93,7 +92,6 @@ async function installQpdf(): Promise<void> {
       }
     });
 
-    // Move to bin/qpdf
     let sourceRoot = tmpDir;
     const items = fs.readdirSync(tmpDir).filter((entry) => entry !== assetName);
     const subDirectories = items.filter((entry) => fs.statSync(path.join(tmpDir, entry)).isDirectory());

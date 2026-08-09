@@ -20,6 +20,6 @@ try {
   }
 } catch (err: unknown) {
   // cac throws synchronously for bad usage (unknown option, missing arg).
-  logger.error((err as Error).message);
+  logger.error(err instanceof Error ? err.message : String(err));
   process.exitCode = 1;
 }

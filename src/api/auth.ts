@@ -126,7 +126,6 @@ async function postAttest(
 export async function attestDevice(force = false): Promise<string> {
   const session = getSession();
 
-  // Reuse valid token
   if (!force && session?.attestationToken && session?.privatePem && !isJwtExpired(session.attestationToken)) {
     logger.debug('[AUTH] reusing valid attestation token');
     return session.attestationToken;
@@ -142,7 +141,6 @@ export async function attestDevice(force = false): Promise<string> {
     }
   }
 
-  // Generate fresh PoP keypair
   logger.debug('[AUTH] generating fresh PoP keypair + attestation');
   const { privatePem, publicJwk } = generateP256KeyPair();
   const nonce = await getNonce();
